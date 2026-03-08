@@ -2,12 +2,14 @@ import type {
   DetectorContext,
   QRInspectionDetail,
   QRInspectionResult,
+  VerdictLevel,
 } from "@/lib/types/qr";
 import {
   isIpv4Host,
   pickHighestRisk,
   type RiskSignal,
 } from "@/lib/utils/riskAnalysis";
+import { makeVerdict } from "@/lib/utils/userFacing";
 
 const shortenerHosts = new Set([
   "bit.ly",
@@ -54,6 +56,55 @@ const documentHosts = new Set([
 
 const appStoreHosts = new Set(["apps.apple.com", "play.google.com"]);
 
+const riskyTlds = new Set([
+  "click",
+  "country",
+  "gq",
+  "loan",
+  "mov",
+  "shop",
+  "tk",
+  "top",
+  "work",
+  "xyz",
+  "zip",
+]);
+
+const freeHostingDomains = new Set([
+  "firebaseapp.com",
+  "github.io",
+  "netlify.app",
+  "pages.dev",
+  "vercel.app",
+  "web.app",
+  "workers.dev",
+]);
+
+const trustedDomainFamilies = [
+  { label: "Google", domains: ["google.com", "youtube.com", "gmail.com"] },
+  { label: "Microsoft", domains: ["microsoft.com", "office.com", "live.com"] },
+  { label: "Apple", domains: ["apple.com"] },
+  { label: "Amazon", domains: ["amazon.com"] },
+  { label: "GitHub", domains: ["github.com"] },
+  { label: "Wikipedia", domains: ["wikipedia.org"] },
+  { label: "PayPal", domains: ["paypal.com", "paypal.me"] },
+  { label: "OpenAI", domains: ["openai.com"] },
+  { label: "LinkedIn", domains: ["linkedin.com"] },
+  { label: "Meta", domains: ["facebook.com", "instagram.com", "whatsapp.com"] },
+];
+
+const impersonatedBrands = [
+  { brand: "paypal", official: ["paypal.com", "paypal.me"] },
+  { brand: "google", official: ["google.com", "gmail.com", "youtube.com"] },
+  { brand: "apple", official: ["apple.com"] },
+  { brand: "microsoft", official: ["microsoft.com", "office.com", "live.com"] },
+  { brand: "amazon", official: ["amazon.com"] },
+  { brand: "binance", official: ["binance.com"] },
+  { brand: "metamask", official: ["metamask.io"] },
+  { brand: "openai", official: ["openai.com"] },
+  { brand: "revolut", official: ["revolut.com"] },
+];
+
 const urlLikePattern =
   /^(?:(?:www\.)?[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:[/?#][^\s]*)?$/;
 
@@ -74,6 +125,9 @@ export function detectUrl(context: DetectorContext): QRInspectionResult | null {
   const signals: RiskSignal[] = [];
   const urlKind = classifyUrlKind(parsedUrl.url);
   const suspiciousKeywords = extractSuspiciousKeywords(parsedUrl.url);
+  const trustedMatch = matchTrustedDomain(normalizedHost);
+  const impersonatedBrand = detectBrandImpersonation(normalizedHost);
+  const riskyTld = normalizedHost.split(".").pop() ?? "";
 
   if (parsedUrl.url.protocol === "http:") {
     signals.push({
@@ -145,6 +199,27 @@ export function detectUrl(context: DetectorContext): QRInspectionResult | null {
     });
   }
 
+  if (freeHostingDomains.has(normalizedHost) || endsWithAny(normalizedHost, freeHostingDomains)) {
+    signals.push({
+      severity: "medium",
+      note: "This link uses a shared hosting domain instead of its own branded domain.",
+    });
+  }
+
+  if (riskyTlds.has(riskyTld)) {
+    signals.push({
+      severity: "medium",
+      note: `The domain uses the .${riskyTld} top-level domain, which is often used in low-trust campaigns.`,
+    });
+  }
+
+  if (impersonatedBrand) {
+    signals.push({
+      severity: "high",
+      note: `The domain mentions ${impersonatedBrand} but is not on an official ${impersonatedBrand} domain.`,
+    });
+  }
+
   const details: QRInspectionDetail[] = [
     { label: "Normalized URL", value: parsedUrl.url.toString() },
     { label: "Domain", value: parsedUrl.url.hostname },
@@ -154,6 +229,12 @@ export function detectUrl(context: DetectorContext): QRInspectionResult | null {
     },
     { label: "Link kind", value: urlKind.label },
   ];
+
+  if (trustedMatch) {
+    details.push({ label: "Known domain", value: `Yes (${trustedMatch})` });
+  } else {
+    details.push({ label: "Known domain", value: "No" });
+  }
 
   if (parsedUrl.assumedHttps) {
     details.push({
@@ -177,6 +258,12 @@ export function detectUrl(context: DetectorContext): QRInspectionResult | null {
     });
   }
 
+  const verdict = classifyUrlVerdict({
+    signals,
+    trustedMatch,
+    impersonatedBrand,
+  });
+
   const safetyNotes = [
     urlKind.note,
     ...(signals.length
@@ -190,8 +277,16 @@ export function detectUrl(context: DetectorContext): QRInspectionResult | null {
     confidence: "high",
     riskLevel: pickHighestRisk(signals, "low"),
     summary: buildUrlSummary(parsedUrl.url, urlKind),
+    plainLanguage: buildPlainLanguage({
+      url: parsedUrl.url,
+      trustedMatch,
+      verdictLevel: verdict.level,
+      urlKind: urlKind.detectedType,
+    }),
     details,
     safetyNotes,
+    recommendedActions: buildRecommendedActions(verdict.level),
+    verdict,
     rawPayload: context.rawPayload,
     debug: {
       matchedBy: "urlDetector",
@@ -322,4 +417,130 @@ function buildUrlSummary(
   }
 
   return `This QR contains a website link to ${url.hostname}.`;
+}
+
+function classifyUrlVerdict({
+  signals,
+  trustedMatch,
+  impersonatedBrand,
+}: {
+  signals: RiskSignal[];
+  trustedMatch?: string;
+  impersonatedBrand?: string;
+}) {
+  const highSignals = signals.filter((signal) => signal.severity === "high").length;
+  const mediumSignals = signals.filter((signal) => signal.severity === "medium").length;
+
+  if (
+    impersonatedBrand ||
+    highSignals >= 2 ||
+    (highSignals >= 1 && mediumSignals >= 1)
+  ) {
+    return makeVerdict(
+      "scam",
+      "Likely scam",
+      "This link shows strong phishing-style patterns such as impersonation, deceptive hosting, or other high-risk technical signals.",
+    );
+  }
+
+  if (highSignals >= 1 || mediumSignals >= 2) {
+    return makeVerdict(
+      "suspicious",
+      "Suspicious",
+      "This link has some warning signs. It may still be real, but it should not be trusted until the destination is checked.",
+    );
+  }
+
+  if (trustedMatch) {
+    return makeVerdict(
+      "safe",
+      "Likely safe",
+      `This link uses a well-known ${trustedMatch} domain and does not show obvious format-level red flags.`,
+    );
+  }
+
+  return makeVerdict(
+    "safe",
+    "Looks safe",
+    "This link looks technically normal and does not show obvious format-level red flags, but the app cannot confirm who controls the site.",
+  );
+}
+
+function buildPlainLanguage({
+  url,
+  trustedMatch,
+  verdictLevel,
+  urlKind,
+}: {
+  url: URL;
+  trustedMatch?: string;
+  verdictLevel: VerdictLevel;
+  urlKind: string;
+}) {
+  if (verdictLevel === "scam") {
+    return `This QR opens a link to ${url.hostname}, but the link has strong scam or phishing-style warning signs. You should treat it as unsafe until proven otherwise.`;
+  }
+
+  if (verdictLevel === "suspicious") {
+    return `This QR opens a link to ${url.hostname}. The destination may still be legitimate, but the link has enough warning signs that you should verify it before opening or trusting it.`;
+  }
+
+  if (urlKind === "Document or file link") {
+    return trustedMatch
+      ? `This QR opens a document or file link on a well-known ${trustedMatch} domain. It looks normal, but you should still check what the file or document asks you to do.`
+      : `This QR opens a document or file link on ${url.hostname}. It looks normal, but you should still verify the sender before downloading or opening anything.`;
+  }
+
+  return trustedMatch
+    ? `This QR opens a link on a well-known ${trustedMatch} domain. It looks technically normal, but you should still check the page before logging in, paying, or sharing data.`
+    : `This QR opens a link to ${url.hostname}. It looks technically normal, but the app cannot confirm who controls the site.`;
+}
+
+function buildRecommendedActions(level: VerdictLevel) {
+  if (level === "scam") {
+    return [
+      "Do not open the link unless you can verify it independently.",
+      "Do not enter passwords, payment details, or verification codes.",
+      "Ask the sender for a different verified link if needed.",
+    ];
+  }
+
+  if (level === "suspicious") {
+    return [
+      "Open it only if you trust the sender and expected the link.",
+      "Type the official site manually if possible instead of following the QR link.",
+      "Do not log in, pay, or download anything until the destination is confirmed.",
+    ];
+  }
+
+  return [
+    "You can open the link if you expected it.",
+    "Still check the page before logging in, paying, or downloading anything.",
+  ];
+}
+
+function matchTrustedDomain(host: string): string | undefined {
+  const match = trustedDomainFamilies.find((family) =>
+    family.domains.some((domain) => host === domain || host.endsWith(`.${domain}`)),
+  );
+
+  return match?.label;
+}
+
+function detectBrandImpersonation(host: string): string | undefined {
+  const match = impersonatedBrands.find(
+    (entry) =>
+      host.includes(entry.brand) &&
+      !entry.official.some(
+        (domain) => host === domain || host.endsWith(`.${domain}`),
+      ),
+  );
+
+  return match?.brand;
+}
+
+function endsWithAny(host: string, domains: Set<string>): boolean {
+  return Array.from(domains).some(
+    (domain) => host === domain || host.endsWith(`.${domain}`),
+  );
 }

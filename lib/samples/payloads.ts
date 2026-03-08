@@ -3,15 +3,21 @@ import type { SamplePayload } from "@/lib/types/qr";
 export const samplePayloads: SamplePayload[] = [
   {
     id: "safe-website",
-    label: "Safe website URL",
-    description: "HTTPS link with no obvious format-level red flags.",
+    label: "Popular safe link",
+    description: "Well-known domain with no obvious format-level red flags.",
     payload: "https://www.wikipedia.org/wiki/QR_code",
   },
   {
     id: "suspicious-website",
-    label: "Suspicious website URL",
-    description: "HTTP plus punycode-style hostname for risk-note testing.",
-    payload: "http://xn--paypa1-secure-jzb.com/account/review",
+    label: "Suspicious link",
+    description: "Unknown shared-hosting link with login-style wording.",
+    payload: "https://gift-claim-check.pages.dev/account/update",
+  },
+  {
+    id: "scam-link",
+    label: "Likely scam link",
+    description: "Synthetic phishing-style link for testing.",
+    payload: "http://paypal-login-security-check.example/verify",
   },
   {
     id: "document-link",

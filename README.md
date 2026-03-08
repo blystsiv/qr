@@ -4,12 +4,20 @@ Small Next.js prototype for scanning, uploading, or pasting QR payloads and imme
 
 The app is intentionally simple. It is built for testing many QR formats quickly, not for production-ready scanning workflows or threat intelligence.
 
+Verdict labels in the UI are heuristic:
+
+- `Likely safe` means no obvious format-level red flags were found.
+- `Suspicious` means the link or payload has some warning signs.
+- `Likely scam` means the app found strong phishing-style patterns.
+- `Needs verification` means the format may be valid, but the sender or request still needs to be confirmed.
+
 ## Features
 
 - Camera scan in the browser with [`html5-qrcode`](https://www.npmjs.com/package/html5-qrcode)
 - Image upload with local QR decoding in the browser
 - Manual paste of raw decoded QR content
 - Rule-based classification pipeline with a single normalized result shape
+- User-facing verdicts and recommended actions
 - Parsed details for URLs, payment QRs, Wi-Fi, contact cards, email, phone, calendar events, crypto, and unknown text
 - EMV / QRIS TLV parsing with nested tag inspection
 - CRC-16 / CCITT-FALSE validation for EMV tag `63`
@@ -228,8 +236,9 @@ Sample buttons are defined in [`lib/samples/payloads.ts`](./lib/samples/payloads
 
 Included examples:
 
-- safe website URL
-- suspicious website URL
+- popular safe link
+- suspicious link
+- likely scam link
 - document link
 - map link
 - Wi-Fi QR
@@ -239,6 +248,8 @@ Included examples:
 - EMV / QRIS example
 - document JSON
 - unknown text QR
+
+The suspicious and likely scam link samples are synthetic test links for QA, not live malicious destinations.
 
 ## How to add a new QR type
 

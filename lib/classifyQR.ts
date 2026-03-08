@@ -1,12 +1,13 @@
 import { qrDetectors } from "@/lib/detectors";
 import type { QRInspectionResult } from "@/lib/types/qr";
+import { withUserFacingDefaults } from "@/lib/utils/userFacing";
 
 export function classifyQR(payload: string): QRInspectionResult {
   const steps: string[] = [];
   const normalizedPayload = payload.replace(/\r\n/g, "\n").trim();
 
   if (!normalizedPayload) {
-    return {
+    return withUserFacingDefaults({
       detectedType: "No QR content yet",
       confidence: "low",
       riskLevel: "unknown",
@@ -19,7 +20,7 @@ export function classifyQR(payload: string): QRInspectionResult {
         matchedBy: "emptyPayload",
         steps: ["Input was empty after trimming whitespace."],
       },
-    };
+    });
   }
 
   const context = {
@@ -45,7 +46,7 @@ export function classifyQR(payload: string): QRInspectionResult {
       steps: [],
     };
 
-    return {
+    return withUserFacingDefaults({
       ...result,
       rawPayload: payload,
       debug: {
@@ -53,7 +54,7 @@ export function classifyQR(payload: string): QRInspectionResult {
         matchedBy: debug.matchedBy || detector.id,
         steps: [...steps, ...debug.steps],
       },
-    };
+    });
   }
 
   throw new Error("A fallback QR detector must always return a result.");

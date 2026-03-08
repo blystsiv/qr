@@ -2,6 +2,12 @@ import type { CRCValidationResult, TLVNode } from "@/lib/types/tlv";
 
 export type ConfidenceLevel = "high" | "medium" | "low";
 export type RiskLevel = "low" | "medium" | "high" | "unknown";
+export type VerdictLevel =
+  | "safe"
+  | "suspicious"
+  | "scam"
+  | "needs-verification"
+  | "informational";
 
 export type QRInspectionDetail = {
   label: string;
@@ -17,14 +23,23 @@ export type QRInspectionDebug = {
   heuristics?: string[];
 };
 
+export type QRUserVerdict = {
+  level: VerdictLevel;
+  label: string;
+  explanation: string;
+};
+
 export type QRInspectionResult = {
   detectedType: string;
   scheme?: string;
   confidence: ConfidenceLevel;
   riskLevel: RiskLevel;
   summary: string;
+  plainLanguage?: string;
   details: QRInspectionDetail[];
   safetyNotes: string[];
+  recommendedActions?: string[];
+  verdict?: QRUserVerdict;
   rawPayload: string;
   debug?: QRInspectionDebug;
 };

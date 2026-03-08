@@ -1,5 +1,6 @@
 import type { DetectorContext, QRInspectionDetail, QRInspectionResult } from "@/lib/types/qr";
 import { inspectEmvPaymentPayload } from "@/lib/parsers/emvParser";
+import { makeVerdict } from "@/lib/utils/userFacing";
 
 const paypalHosts = new Set(["paypal.me", "paypal.com", "www.paypal.com"]);
 
@@ -40,8 +41,43 @@ export function detectPayment(
       confidence: emvInspection.confidence,
       riskLevel: emvInspection.riskLevel,
       summary: emvInspection.summary,
+      plainLanguage:
+        emvInspection.crc.present && emvInspection.crc.valid
+          ? `This is a payment QR code${
+              emvInspection.details.find((detail) => detail.label === "Merchant name")
+                ? ` for ${
+                    emvInspection.details.find(
+                      (detail) => detail.label === "Merchant name",
+                    )?.value
+                  }`
+                : ""
+            }. The payment format looks technically valid, but that does not prove the person asking for payment is trustworthy.`
+          : "This is a payment QR code, but it has structural warning signs. Do not pay unless you can verify the request another way.",
       details: emvInspection.details,
       safetyNotes: emvInspection.safetyNotes,
+      recommendedActions:
+        emvInspection.crc.present && emvInspection.crc.valid
+          ? [
+              "Check the merchant name carefully.",
+              "Confirm the amount before approving payment.",
+              "Only continue if you expected this payment request.",
+            ]
+          : [
+              "Do not pay until the merchant and amount are verified independently.",
+              "Ask the sender for another verified payment method if needed.",
+            ],
+      verdict:
+        emvInspection.crc.present && !emvInspection.crc.valid
+          ? makeVerdict(
+              "suspicious",
+              "Payment needs extra caution",
+              "The payment QR failed a structural validation check. That does not prove a scam, but it is a strong reason to stop and verify it first.",
+            )
+          : makeVerdict(
+              "needs-verification",
+              "Payment needs verification",
+              "The payment code may be technically valid, but that does not prove the payment request itself is honest.",
+            ),
       rawPayload: context.rawPayload,
       debug: {
         matchedBy: "paymentDetector",
@@ -96,11 +132,24 @@ function parseUpiPayment(
     summary: `This QR contains a UPI payment request${
       payeeName ? ` for ${payeeName}` : ""
     }.`,
+    plainLanguage: `This is a UPI payment request${
+      payeeName ? ` for ${payeeName}` : ""
+    }. That means a payment app can use this QR to prepare a transfer. It does not prove the person asking for money is trustworthy.`,
     details,
     safetyNotes: [
       "This QR contains payment information, not a website link.",
       "Verify merchant name, amount, and source before proceeding.",
     ],
+    recommendedActions: [
+      "Check the payee name and UPI address.",
+      "Confirm the amount before approving payment.",
+      "Only continue if you expected this request.",
+    ],
+    verdict: makeVerdict(
+      "needs-verification",
+      "Payment needs verification",
+      "The QR format looks valid for UPI, but that does not confirm who is receiving the money or whether the request is genuine.",
+    ),
     rawPayload: context.rawPayload,
     debug: {
       matchedBy: "paymentDetector",
@@ -138,11 +187,24 @@ function buildPayPalResult(
     summary: `This QR appears to open a PayPal payment${
       handle ? ` for ${handle}` : ""
     }.`,
+    plainLanguage: `This QR appears to open a PayPal payment${
+      handle ? ` for ${handle}` : ""
+    }. That does not confirm whether the payment request is legitimate, so verify the recipient before paying.`,
     details,
     safetyNotes: [
       "This QR contains payment information, not a website link.",
       "Verify the PayPal target, amount, and source before proceeding.",
     ],
+    recommendedActions: [
+      "Check the PayPal target before paying.",
+      "Confirm the amount in the payment app.",
+      "Only continue if the payment request was expected.",
+    ],
+    verdict: makeVerdict(
+      "needs-verification",
+      "Payment needs verification",
+      "This looks like a valid PayPal payment link, but it does not prove the recipient is trustworthy.",
+    ),
     rawPayload: context.rawPayload,
     debug: {
       matchedBy: "paymentDetector",

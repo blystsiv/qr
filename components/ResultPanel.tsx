@@ -1,4 +1,8 @@
-import type { QRInspectionResult, RiskLevel } from "@/lib/types/qr";
+import type {
+  QRInspectionResult,
+  RiskLevel,
+  VerdictLevel,
+} from "@/lib/types/qr";
 import type { TLVNode } from "@/lib/types/tlv";
 
 type ResultPanelProps = {
@@ -20,6 +24,14 @@ const confidenceStyles = {
   low: "bg-stone-200 text-stone-700",
 };
 
+const verdictStyles: Record<VerdictLevel, string> = {
+  safe: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  suspicious: "border-amber-200 bg-amber-50 text-amber-900",
+  scam: "border-rose-200 bg-rose-50 text-rose-900",
+  "needs-verification": "border-sky-200 bg-sky-50 text-sky-900",
+  informational: "border-stone-200 bg-stone-50 text-stone-900",
+};
+
 export function ResultPanel({
   result,
   sourceLabel,
@@ -27,6 +39,7 @@ export function ResultPanel({
 }: ResultPanelProps) {
   const nestedTags = Object.entries(result.debug?.nestedTags ?? {});
   const hasPayload = result.rawPayload.trim().length > 0;
+  const verdict = result.verdict;
 
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
@@ -48,6 +61,22 @@ export function ResultPanel({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {verdict ? (
+            <Badge
+              label={`Verdict: ${verdict.label}`}
+              className={
+                verdict.level === "safe"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : verdict.level === "suspicious"
+                    ? "bg-amber-100 text-amber-800"
+                    : verdict.level === "scam"
+                      ? "bg-rose-100 text-rose-800"
+                      : verdict.level === "needs-verification"
+                        ? "bg-sky-100 text-sky-800"
+                        : "bg-stone-200 text-stone-700"
+              }
+            />
+          ) : null}
           {result.scheme ? (
             <Badge label={`Scheme: ${result.scheme}`} tone="neutral" />
           ) : null}
@@ -64,6 +93,27 @@ export function ResultPanel({
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
+          {verdict ? (
+            <section
+              className={`rounded-xl border px-4 py-4 ${verdictStyles[verdict.level]}`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.18em]">
+                User verdict
+              </p>
+              <p className="mt-2 text-lg font-semibold">{verdict.label}</p>
+              <p className="mt-2 text-sm leading-6">{verdict.explanation}</p>
+            </section>
+          ) : null}
+
+          <section>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+              What this means
+            </h3>
+            <div className="mt-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm leading-6 text-stone-700">
+              {result.plainLanguage ?? result.summary}
+            </div>
+          </section>
+
           <section>
             <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
               Details
@@ -110,6 +160,24 @@ export function ResultPanel({
               </p>
             )}
           </section>
+
+          {result.recommendedActions?.length ? (
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                What you can do
+              </h3>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-700">
+                {result.recommendedActions.map((action) => (
+                  <li
+                    key={action}
+                    className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2"
+                  >
+                    {action}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section>
             <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
