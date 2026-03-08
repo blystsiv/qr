@@ -96,6 +96,7 @@ It works in ordered layers:
    - `BEGIN:VCARD`
    - `BEGIN:VEVENT`
    - `mailto:`, `tel:`, `sms:`
+   - `geo:`
    - `bitcoin:`, `ethereum:`, `litecoin:`, `solana:`
    - `upi://`
 3. Try structured payment detection:
@@ -103,12 +104,19 @@ It works in ordered layers:
    - nested merchant account info tags
    - CRC validation
    - QRIS / EMV-compatible scheme identification
-4. Try website detection for `http://` and `https://`
-5. Try low-confidence heuristics:
+4. Try richer link detection:
+   - `http://`, `https://`, and bare domains
+   - document/file links
+   - map links
+   - app store links
+5. Try document / verification payload heuristics:
+   - JSON with document or verification markers
+   - JWT-like signed tokens
+6. Try low-confidence heuristics:
    - government / identity / official-looking markers
    - wallet-like strings
    - plain email / phone values
-6. Fall back to `Text or unknown format`
+7. Fall back to structured text or `Text or unknown format`
 
 Each detector returns the same normalized shape:
 
@@ -179,6 +187,9 @@ The result panel shows:
 Current rule-based support includes:
 
 - Website links
+- Document or file links
+- Location links
+- App store links
 - Payment QR
   - UPI
   - PayPal patterns
@@ -191,6 +202,9 @@ Current rule-based support includes:
 - Contact card
 - Calendar event
 - Government / identity / official data (heuristic)
+- Document / verification data (heuristic)
+- Signed token / verification data
+- Structured text or app-specific data
 - Text or unknown format
 
 ## Risk notes
@@ -216,11 +230,14 @@ Included examples:
 
 - safe website URL
 - suspicious website URL
+- document link
+- map link
 - Wi-Fi QR
 - vCard
 - bitcoin URI
 - UPI example
 - EMV / QRIS example
+- document JSON
 - unknown text QR
 
 ## How to add a new QR type

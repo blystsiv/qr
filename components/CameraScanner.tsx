@@ -133,7 +133,7 @@ export function CameraScanner({
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
-        <div id={elementId} className="min-h-[320px]" />
+        <div id={elementId} className="min-h-[260px] sm:min-h-[320px]" />
       </div>
 
       <p className="text-sm text-stone-600">{status}</p>

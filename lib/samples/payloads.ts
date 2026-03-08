@@ -14,6 +14,19 @@ export const samplePayloads: SamplePayload[] = [
     payload: "http://xn--paypa1-secure-jzb.com/account/review",
   },
   {
+    id: "document-link",
+    label: "Document link",
+    description: "Cloud document sharing link.",
+    payload:
+      "https://docs.google.com/document/d/1234567890abcdef/edit?usp=sharing",
+  },
+  {
+    id: "location-link",
+    label: "Map link",
+    description: "Map or navigation style QR.",
+    payload: "geo:50.4501,30.5234?q=Kyiv%20City%20Center",
+  },
+  {
     id: "wifi",
     label: "Wi-Fi QR",
     description: "Standard WIFI: payload with password hidden in parsed view.",
@@ -52,5 +65,12 @@ export const samplePayloads: SamplePayload[] = [
     label: "Unknown text QR",
     description: "App-specific plain text that should fall back cleanly.",
     payload: "INTERNAL-CHECKIN|SITE=KIOSK-07|TOKEN=ABC123XYZ",
+  },
+  {
+    id: "document-json",
+    label: "Document data",
+    description: "Structured document or verification JSON.",
+    payload:
+      '{"issuer":"City Service Portal","documentType":"visitor_pass","documentNumber":"AB1234567","expiryDate":"2026-12-31","verification":true}',
   },
 ];

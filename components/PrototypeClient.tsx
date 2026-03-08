@@ -6,27 +6,20 @@ import type { Html5Qrcode } from "html5-qrcode";
 import { CameraScanner } from "@/components/CameraScanner";
 import { ResultPanel } from "@/components/ResultPanel";
 import { classifyQR } from "@/lib/classifyQR";
-import { publicSettings, serverIntegrationEnvNames } from "@/lib/config";
 import { samplePayloads } from "@/lib/samples/payloads";
 import type { QRInspectionResult } from "@/lib/types/qr";
 
 type InputMode = "camera" | "upload" | "paste";
 
-const defaultSample = samplePayloads[0];
-
 export function PrototypeClient() {
   const uploadReaderId = useId().replace(/:/g, "_");
   const [inputMode, setInputMode] = useState<InputMode>("paste");
-  const [payload, setPayload] = useState(defaultSample.payload);
-  const [sourceLabel, setSourceLabel] = useState(
-    `Sample: ${defaultSample.label}`,
-  );
-  const [result, setResult] = useState<QRInspectionResult>(() =>
-    classifyQR(defaultSample.payload),
-  );
+  const [payload, setPayload] = useState("");
+  const [sourceLabel, setSourceLabel] = useState("Manual input");
+  const [result, setResult] = useState<QRInspectionResult>(() => classifyQR(""));
   const [developerMode, setDeveloperMode] = useState(true);
   const [uploadStatus, setUploadStatus] = useState(
-    "Upload an image file with a QR code to decode it locally.",
+    "Upload a QR image to decode it locally.",
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -99,24 +92,20 @@ export function PrototypeClient() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f7f7f2_0%,#edf2f7_100%)] px-4 py-10 text-stone-900 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f7f7f2_0%,#edf2f7_100%)] px-3 py-6 text-stone-900 sm:px-6 sm:py-10 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-8">
-        <header className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-            Prototype
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
+        <header className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
+          <h1 className="text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
             QR Inspector Prototype
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-600 sm:text-base">
-            Scan or paste QR content to classify and inspect it. This prototype
-            focuses on readable rule-based detection, not production polish.
+            Scan, upload, or paste QR content to see what it probably contains.
           </p>
         </header>
 
-        <div className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-          <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap gap-2">
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr] xl:gap-8">
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <ModeButton
                 active={inputMode === "camera"}
                 onClick={() => setInputMode("camera")}
@@ -132,13 +121,6 @@ export function PrototypeClient() {
                 onClick={() => setInputMode("paste")}
                 label="Paste raw content"
               />
-              <button
-                type="button"
-                onClick={() => loadSample(defaultSample.id)}
-                className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:bg-stone-50"
-              >
-                Load demo sample
-              </button>
               <button
                 type="button"
                 onClick={clearPayload}
@@ -200,10 +182,10 @@ export function PrototypeClient() {
                       applyPayload(event.target.value, "Manual paste");
                     }}
                     placeholder="Paste decoded QR content here..."
-                    className="min-h-[280px] w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-900 outline-none transition focus:border-stone-500 focus:bg-white"
+                    className="min-h-[220px] w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-900 outline-none transition focus:border-stone-500 focus:bg-white sm:min-h-[280px]"
                   />
                   <p className="text-sm text-stone-500">
-                    Classification updates immediately as the payload changes.
+                    The result updates as the payload changes.
                   </p>
                 </div>
               ) : null}
@@ -211,9 +193,45 @@ export function PrototypeClient() {
 
             <div className="mt-6 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-                Current payload source
+                Source
               </p>
               <p className="mt-2 text-sm text-stone-800">{sourceLabel}</p>
+            </div>
+
+            <div className="mt-6 rounded-xl border border-stone-200 bg-stone-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                    Samples
+                  </p>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Quick test payloads.
+                  </p>
+                </div>
+
+                <label className="flex items-center gap-3 text-sm text-stone-700">
+                  <input
+                    type="checkbox"
+                    checked={developerMode}
+                    onChange={(event) => setDeveloperMode(event.target.checked)}
+                    className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500"
+                  />
+                  Debug
+                </label>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                {samplePayloads.map((sample) => (
+                  <button
+                    key={sample.id}
+                    type="button"
+                    onClick={() => loadSample(sample.id)}
+                    className="rounded-full border border-stone-300 bg-white px-3 py-2 text-sm text-stone-700 transition hover:border-stone-400 hover:bg-stone-100"
+                  >
+                    {sample.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -222,94 +240,6 @@ export function PrototypeClient() {
             sourceLabel={sourceLabel}
             developerMode={developerMode}
           />
-        </div>
-
-        <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-          <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-                  Sample data
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-stone-900">
-                  Test payloads
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
-                  Load common QR payloads to test detector behavior without
-                  needing a live camera or image upload.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              {samplePayloads.map((sample) => (
-                <button
-                  key={sample.id}
-                  type="button"
-                  onClick={() => loadSample(sample.id)}
-                  className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-left transition hover:border-stone-300 hover:bg-white"
-                >
-                  <p className="font-medium text-stone-900">{sample.label}</p>
-                  <p className="mt-1 text-sm leading-6 text-stone-600">
-                    {sample.description}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-              Settings
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-stone-900">
-              Optional integrations
-            </h2>
-
-            <div className="mt-5 space-y-3 text-sm text-stone-700">
-              <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-                <p className="font-medium text-stone-900">
-                  URL reputation checks
-                </p>
-                <p className="mt-1">
-                  {publicSettings.enableUrlReputation ? "Enabled" : "Disabled"}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-                <p className="font-medium text-stone-900">API base URL</p>
-                <p className="mt-1 break-all">
-                  {publicSettings.apiBaseUrl || "Not configured"}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-                <p className="font-medium text-stone-900">
-                  Server-side secret placeholders
-                </p>
-                <p className="mt-1">
-                  {serverIntegrationEnvNames.join(", ")}
-                </p>
-              </div>
-            </div>
-
-            <label className="mt-6 flex items-center gap-3 text-sm text-stone-700">
-              <input
-                type="checkbox"
-                checked={developerMode}
-                onChange={(event) => setDeveloperMode(event.target.checked)}
-                className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500"
-              />
-              Show developer debug panel
-            </label>
-
-            <p className="mt-4 text-sm leading-6 text-stone-600">
-              The prototype runs fully offline for detection. If you later add
-              reputation lookups or payment intelligence, keep API keys in{" "}
-              <code>.env.local</code> and expose only safe public flags through{" "}
-              <code>NEXT_PUBLIC_*</code> variables.
-            </p>
-          </section>
         </div>
       </div>
     </main>
@@ -329,7 +259,7 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+      className={`w-full rounded-full px-4 py-2 text-sm font-medium transition sm:w-auto ${
         active
           ? "bg-stone-900 text-white"
           : "border border-stone-300 text-stone-700 hover:border-stone-400 hover:bg-stone-50"

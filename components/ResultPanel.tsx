@@ -26,9 +26,10 @@ export function ResultPanel({
   developerMode,
 }: ResultPanelProps) {
   const nestedTags = Object.entries(result.debug?.nestedTags ?? {});
+  const hasPayload = result.rawPayload.trim().length > 0;
 
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
@@ -37,6 +38,9 @@ export function ResultPanel({
           <h2 className="text-2xl font-semibold text-stone-900">
             {result.detectedType}
           </h2>
+          <p className="text-sm font-medium text-stone-800">
+            What it likely contains
+          </p>
           <p className="max-w-2xl text-sm leading-6 text-stone-600">
             {result.summary}
           </p>
@@ -62,11 +66,29 @@ export function ResultPanel({
         <div className="space-y-6">
           <section>
             <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
-              Parsed details
+              Details
             </h3>
 
             {result.details.length ? (
-              <div className="mt-3 overflow-hidden rounded-xl border border-stone-200">
+              <div className="mt-3 space-y-2 md:hidden">
+                {result.details.map((detail) => (
+                  <div
+                    key={detail.label}
+                    className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      {detail.label}
+                    </p>
+                    <p className="mt-2 break-words text-sm text-stone-900">
+                      {detail.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {result.details.length ? (
+              <div className="mt-3 hidden overflow-hidden rounded-xl border border-stone-200 md:block">
                 <table className="min-w-full divide-y divide-stone-200 text-sm">
                   <tbody className="divide-y divide-stone-200">
                     {result.details.map((detail) => (
@@ -84,7 +106,7 @@ export function ResultPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm text-stone-500">
-                No structured fields were extracted for this payload.
+                No structured fields were found.
               </p>
             )}
           </section>
@@ -107,16 +129,18 @@ export function ResultPanel({
         </div>
 
         <div className="space-y-6">
-          <details className="rounded-xl border border-stone-200 bg-stone-50">
-            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-stone-900">
-              Raw payload
-            </summary>
-            <pre className="overflow-x-auto border-t border-stone-200 px-4 py-4 text-xs leading-6 text-stone-700">
-              {result.rawPayload}
-            </pre>
-          </details>
+          {hasPayload ? (
+            <details className="rounded-xl border border-stone-200 bg-stone-50">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-stone-900">
+                Raw payload
+              </summary>
+              <pre className="overflow-x-auto border-t border-stone-200 px-4 py-4 text-xs leading-6 text-stone-700">
+                {result.rawPayload}
+              </pre>
+            </details>
+          ) : null}
 
-          {developerMode && result.debug ? (
+          {developerMode && result.debug && hasPayload ? (
             <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
@@ -208,14 +232,6 @@ export function ResultPanel({
                   </section>
                 ) : null}
 
-                <details className="rounded-lg border border-stone-200 bg-white">
-                  <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-stone-700">
-                    Full debug JSON
-                  </summary>
-                  <pre className="overflow-x-auto border-t border-stone-200 px-3 py-3 text-xs leading-6 text-stone-700">
-                    {JSON.stringify(result.debug, null, 2)}
-                  </pre>
-                </details>
               </div>
             </section>
           ) : null}
@@ -239,7 +255,11 @@ function Badge({
       ? "rounded-full bg-stone-900 px-3 py-1 text-xs font-medium text-white"
       : "rounded-full px-3 py-1 text-xs font-medium";
 
-  return <span className={className ? `${baseClass} ${className}` : baseClass}>{label}</span>;
+  return (
+    <span className={className ? `${baseClass} ${className}` : baseClass}>
+      {label}
+    </span>
+  );
 }
 
 function TlvTable({ title, nodes }: { title: string; nodes: TLVNode[] }) {
@@ -248,7 +268,26 @@ function TlvTable({ title, nodes }: { title: string; nodes: TLVNode[] }) {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
         {title}
       </p>
-      <div className="mt-2 overflow-hidden rounded-lg border border-stone-200 bg-white">
+      <div className="mt-2 space-y-2 md:hidden">
+        {nodes.map((node) => (
+          <div
+            key={`${node.tag}-${node.start}`}
+            className="rounded-lg border border-stone-200 bg-white px-3 py-3"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-mono text-xs text-stone-700">{node.tag}</span>
+              <span className="text-xs text-stone-500">Len {node.length}</span>
+            </div>
+            <p className="mt-2 text-xs font-medium text-stone-600">
+              {node.label ?? "Unlabeled"}
+            </p>
+            <p className="mt-2 break-all text-xs text-stone-800">
+              {truncateValue(node.value)}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 hidden overflow-hidden rounded-lg border border-stone-200 bg-white md:block">
         <table className="min-w-full divide-y divide-stone-200 text-xs">
           <thead className="bg-stone-50 text-left text-stone-500">
             <tr>
@@ -262,7 +301,9 @@ function TlvTable({ title, nodes }: { title: string; nodes: TLVNode[] }) {
             {nodes.map((node) => (
               <tr key={`${node.tag}-${node.start}`}>
                 <td className="px-3 py-2 align-top font-mono">{node.tag}</td>
-                <td className="px-3 py-2 align-top">{node.label ?? "Unlabeled"}</td>
+                <td className="px-3 py-2 align-top">
+                  {node.label ?? "Unlabeled"}
+                </td>
                 <td className="px-3 py-2 align-top">{node.length}</td>
                 <td className="px-3 py-2 align-top break-all">
                   {truncateValue(node.value)}

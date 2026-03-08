@@ -7,14 +7,13 @@ export function classifyQR(payload: string): QRInspectionResult {
 
   if (!normalizedPayload) {
     return {
-      detectedType: "Text or unknown format",
+      detectedType: "No QR content yet",
       confidence: "low",
       riskLevel: "unknown",
-      summary: "Paste, scan, or upload a QR payload to inspect it.",
-      details: [{ label: "Status", value: "No payload provided" }],
-      safetyNotes: [
-        "Add QR content first. The inspector only analyzes payloads that are already decoded or scanned.",
-      ],
+      summary:
+        "Scan, upload, or paste QR content and this prototype will show what it likely contains.",
+      details: [],
+      safetyNotes: ["Nothing has been scanned or pasted yet."],
       rawPayload: payload,
       debug: {
         matchedBy: "emptyPayload",
