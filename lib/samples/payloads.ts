@@ -3,9 +3,9 @@ import type { SamplePayload } from "@/lib/types/qr";
 export const samplePayloads: SamplePayload[] = [
   {
     id: "safe-website",
-    label: "Popular safe link",
-    description: "Well-known domain with no obvious format-level red flags.",
-    payload: "https://www.wikipedia.org/wiki/QR_code",
+    label: "Safe company link",
+    description: "Simple website link with no obvious format-level red flags.",
+    payload: "https://kevychsolutions.com",
   },
   {
     id: "suspicious-website",

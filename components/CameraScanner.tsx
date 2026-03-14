@@ -8,13 +8,10 @@ type CameraScannerProps = {
   onDetected: (payload: string) => void;
 };
 
-export function CameraScanner({
-  active,
-  onDetected,
-}: CameraScannerProps) {
+export function CameraScanner({ active, onDetected }: CameraScannerProps) {
   const elementId = useId().replace(/:/g, "_");
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const [status, setStatus] = useState("Camera scanner is idle.");
+  const [status, setStatus] = useState("Hold the QR code inside the frame.");
   const [error, setError] = useState<string | null>(null);
 
   const stopScanner = useEffectEvent(async () => {
@@ -30,18 +27,18 @@ export function CameraScanner({
         await scanner.stop();
       }
     } catch {
-      // Ignore shutdown errors so the UI can recover on the next start.
+      // Ignore shutdown errors so the next scan can start cleanly.
     }
 
     try {
       scanner.clear();
     } catch {
-      // Ignore stale DOM cleanup errors when nothing was rendered.
+      // Ignore DOM cleanup errors from stale scanner instances.
     }
   });
 
   const handleDetected = useEffectEvent((payload: string) => {
-    setStatus("QR code captured from the live camera feed.");
+    setStatus("QR code captured.");
     setError(null);
     onDetected(payload);
   });
@@ -51,13 +48,13 @@ export function CameraScanner({
 
     if (!active) {
       void stopScanner();
-      setStatus("Camera scanner is idle.");
+      setStatus("Hold the QR code inside the frame.");
       setError(null);
       return;
     }
 
     async function startScanner() {
-      setStatus("Requesting camera access...");
+      setStatus("Opening camera...");
       setError(null);
 
       try {
@@ -76,7 +73,7 @@ export function CameraScanner({
 
         if (!cameras.length) {
           setStatus("Camera unavailable.");
-          setError("No camera was detected in this browser.");
+          setError("No camera was found on this device.");
           return;
         }
 
@@ -90,21 +87,27 @@ export function CameraScanner({
         try {
           await scanner.start(
             { facingMode: "environment" },
-            { fps: 10, qrbox: { width: 240, height: 240 } },
+            {
+              fps: 10,
+              aspectRatio: 1,
+            },
             handleDetected,
             () => undefined,
           );
         } catch {
           await scanner.start(
             cameras[0].id,
-            { fps: 10, qrbox: { width: 240, height: 240 } },
+            {
+              fps: 10,
+              aspectRatio: 1,
+            },
             handleDetected,
             () => undefined,
           );
         }
 
         if (!cancelled) {
-          setStatus("Point the camera at a QR code.");
+          setStatus("Align the QR code inside the frame.");
         }
       } catch (scannerError) {
         if (cancelled) {
@@ -131,23 +134,52 @@ export function CameraScanner({
   }, [active, elementId]);
 
   return (
-    <div className="space-y-3">
-      <div className="overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
-        <div id={elementId} className="min-h-[260px] sm:min-h-[320px]" />
+    <div className="flex flex-col items-center">
+      <div className="relative w-full max-w-[343px] overflow-hidden rounded-[32px] border border-[#22465b] bg-[radial-gradient(circle_at_top,#24495d_0%,#173546_42%,#08131d_100%)] p-4">
+        <div className="absolute inset-0 opacity-30">
+          <div className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(155,203,234,0.18)_0%,transparent_65%)]" />
+        </div>
+
+        <div className="relative mx-auto aspect-square w-full max-w-[274px]">
+          <div className="scanner-viewport absolute inset-0 overflow-hidden rounded-[24px] bg-black/20">
+            <div id={elementId} className="h-full w-full [&>div]:h-full [&>div]:w-full" />
+          </div>
+
+          <div className="pointer-events-none absolute inset-[14px] rounded-[18px] border border-[#9bcbea66]" />
+          <ScanCorners />
+        </div>
       </div>
 
-      <p className="text-sm text-stone-600">{status}</p>
+      <p className="mt-6 text-center text-xl font-semibold leading-6 text-white">
+        Scan the QR code
+      </p>
+      <p className="mt-2 text-center text-sm leading-6 text-white/60">{status}</p>
 
       {error ? (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <div className="mt-4 w-full max-w-[343px] rounded-[14px] border border-[#fb504733] bg-[#fb50471a] px-4 py-3 text-sm text-white/85">
           {error}
-        </p>
+        </div>
       ) : null}
+    </div>
+  );
+}
 
-      <p className="text-xs text-stone-500">
-        Camera scanning works best on <code>localhost</code> or another secure
-        origin because browsers require permission before exposing the camera.
-      </p>
+function ScanCorners() {
+  return (
+    <>
+      <Corner className="left-0 top-0" />
+      <Corner className="right-0 top-0 rotate-90" />
+      <Corner className="bottom-0 left-0 -rotate-90" />
+      <Corner className="bottom-0 right-0 rotate-180" />
+    </>
+  );
+}
+
+function Corner({ className }: { className: string }) {
+  return (
+    <div className={`pointer-events-none absolute h-14 w-14 ${className}`}>
+      <div className="absolute left-0 top-0 h-1.5 w-9 rounded-full bg-[#9bcbea]" />
+      <div className="absolute left-0 top-0 h-9 w-1.5 rounded-full bg-[#9bcbea]" />
     </div>
   );
 }

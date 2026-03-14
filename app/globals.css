@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f7f2;
-  --foreground: #1c1917;
+  --background: #0e2838;
+  --foreground: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-league-spartan);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -23,7 +23,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), sans-serif;
+  font-family: var(--font-league-spartan), sans-serif;
 }
 
 pre,
@@ -32,6 +32,18 @@ code {
 }
 
 ::selection {
-  background: #dbeafe;
-  color: #0f172a;
+  background: #9bcbea;
+  color: #0e2838;
+}
+
+.scanner-viewport #qr-shaded-region {
+  display: none !important;
+}
+
+.scanner-viewport video,
+.scanner-viewport canvas {
+  height: 100% !important;
+  width: 100% !important;
+  border-radius: 24px;
+  object-fit: cover;
 }
