@@ -89,6 +89,38 @@ export function detectAction(
     };
   }
 
+  if (/^whatsapp:\/\//i.test(payload)) {
+    context.pushStep("Matched WhatsApp action prefix.");
+    const { number, body } = parseWhatsapp(payload);
+    const details: QRInspectionDetail[] = [
+      { label: "Recipient", value: number || "Not provided" },
+    ];
+
+    if (body) {
+      details.push({ label: "Message body", value: body });
+    }
+
+    return {
+      detectedType: "Phone or messaging action",
+      scheme: "WhatsApp",
+      confidence: "high",
+      riskLevel: "low",
+      summary: `This QR opens a WhatsApp message${
+        number ? ` to ${number}` : ""
+      }.`,
+      details,
+      safetyNotes: [
+        "This QR opens a messaging action, not a website link.",
+        "Review the recipient and message before sending anything.",
+      ],
+      rawPayload: context.rawPayload,
+      debug: {
+        matchedBy: "actionDetector",
+        steps: [],
+      },
+    };
+  }
+
   if (emailPattern.test(payload)) {
     context.pushStep("Matched plain email address heuristic.");
 
@@ -160,6 +192,25 @@ function parseSms(payload: string): {
     number,
     body: params.get("body") ?? "",
   };
+}
+
+function parseWhatsapp(payload: string): {
+  number: string;
+  body: string;
+} {
+  try {
+    const url = new URL(payload);
+
+    return {
+      number: url.searchParams.get("phone") ?? "",
+      body: url.searchParams.get("text") ?? "",
+    };
+  } catch {
+    return {
+      number: "",
+      body: "",
+    };
+  }
 }
 
 function buildPhoneResult(

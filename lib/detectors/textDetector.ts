@@ -27,6 +27,28 @@ export function detectTextOrUnknown(
     };
   }
 
+  const plainText = inspectPlainText(context.normalizedPayload);
+  if (plainText) {
+    context.pushStep("Matched plain text note heuristic.");
+
+    return {
+      detectedType: "Text note",
+      confidence: "high",
+      riskLevel: "low",
+      summary: "This QR contains plain text instead of a link or action.",
+      details: plainText,
+      safetyNotes: [
+        "This QR contains plain text, not a website link.",
+        "Read the text before copying it into another app or following any instructions inside it.",
+      ],
+      rawPayload: context.rawPayload,
+      debug: {
+        matchedBy: "textDetector",
+        steps: [],
+      },
+    };
+  }
+
   context.pushStep("Fell back to text/unknown classification.");
 
   return {
@@ -85,4 +107,37 @@ function inspectStructuredText(payload: string) {
   }
 
   return pairs.slice(0, 8);
+}
+
+function inspectPlainText(payload: string) {
+  if (
+    !payload.trim() ||
+    payload.length > 280 ||
+    /\s{3,}/.test(payload) ||
+    /^(BEGIN:|MECARD:|WIFI:|mailto:|tel:|sms:|smsto:|geo:)/i.test(payload)
+  ) {
+    return null;
+  }
+
+  const lineCount = payload.split(/\n/).length;
+  const wordCount = payload.split(/\s+/).filter(Boolean).length;
+
+  return [
+    {
+      label: "Preview",
+      value: payload.length > 140 ? `${payload.slice(0, 140)}…` : payload,
+    },
+    {
+      label: "Length",
+      value: `${payload.length} characters`,
+    },
+    {
+      label: "Words",
+      value: `${wordCount}`,
+    },
+    {
+      label: "Lines",
+      value: `${lineCount}`,
+    },
+  ];
 }

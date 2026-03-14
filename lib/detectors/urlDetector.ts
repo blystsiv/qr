@@ -23,17 +23,31 @@ const shortenerHosts = new Set([
 ]);
 
 const documentFileExtensions = new Set([
+  "aac",
+  "avi",
   "csv",
   "doc",
   "docx",
+  "gif",
+  "heic",
+  "ics",
+  "json",
   "jpeg",
   "jpg",
+  "m4a",
+  "mov",
+  "mp3",
+  "mp4",
   "pdf",
   "png",
   "ppt",
   "pptx",
   "rtf",
+  "svg",
   "txt",
+  "wav",
+  "webm",
+  "webp",
   "xls",
   "xlsx",
   "zip",
@@ -55,6 +69,40 @@ const documentHosts = new Set([
 ]);
 
 const appStoreHosts = new Set(["apps.apple.com", "play.google.com"]);
+const feedbackHosts = new Set([
+  "forms.office.com",
+  "jotform.com",
+  "surveyheart.com",
+  "surveyhero.com",
+  "typeform.com",
+  "www.typeform.com",
+]);
+const galleryHosts = new Set([
+  "flickr.com",
+  "imgur.com",
+  "photos.google.com",
+  "unsplash.com",
+]);
+const mediaHosts = new Set([
+  "soundcloud.com",
+  "spotify.com",
+  "vimeo.com",
+  "www.youtube.com",
+  "youtu.be",
+  "youtube.com",
+]);
+const socialHosts = [
+  { label: "Facebook", domains: ["facebook.com", "fb.com"] },
+  { label: "Instagram", domains: ["instagram.com"] },
+  { label: "LinkedIn", domains: ["linkedin.com"] },
+  { label: "Pinterest", domains: ["pinterest.com"] },
+  { label: "Telegram", domains: ["t.me", "telegram.me"] },
+  { label: "Threads", domains: ["threads.net"] },
+  { label: "TikTok", domains: ["tiktok.com"] },
+  { label: "WhatsApp", domains: ["wa.me", "whatsapp.com", "api.whatsapp.com"] },
+  { label: "X / Twitter", domains: ["twitter.com", "x.com"] },
+  { label: "YouTube", domains: ["youtube.com", "youtu.be"] },
+];
 
 const riskyTlds = new Set([
   "click",
@@ -332,21 +380,40 @@ function classifyUrlKind(url: URL): {
   const host = url.hostname.toLowerCase();
   const path = url.pathname.toLowerCase();
   const extension = path.includes(".") ? path.split(".").pop() ?? "" : "";
+  const provider = matchSocialProvider(host);
+  const feedbackLike =
+    feedbackHosts.has(host) ||
+    path.includes("/forms") ||
+    path.includes("/feedback") ||
+    path.includes("/review") ||
+    path.includes("/rating") ||
+    path.includes("/survey");
+
+  if (feedbackLike) {
+    return {
+      detectedType: "Website link",
+      label: "Review or feedback page",
+      note: "This QR opens a review, rating, survey, or feedback page.",
+      provider: provider ?? matchProviderLabel(host) ?? host,
+    };
+  }
 
   if (documentHosts.has(host)) {
     return {
       detectedType: "Document or file link",
       label: "Cloud document or share link",
       note: "This QR contains a document or file-sharing link.",
-      provider: host,
+      provider: matchProviderLabel(host) ?? host,
     };
   }
 
   if (documentFileExtensions.has(extension)) {
+    const fileLabel = getFileKindLabel(extension);
+
     return {
       detectedType: "Document or file link",
-      label: `${extension.toUpperCase()} file link`,
-      note: "This QR points to a document or file rather than a general webpage.",
+      label: fileLabel,
+      note: "This QR points to a file or downloadable media instead of a normal webpage.",
     };
   }
 
@@ -362,7 +429,7 @@ function classifyUrlKind(url: URL): {
       detectedType: "Location link",
       label: "Map or navigation link",
       note: "This QR contains a map or navigation link.",
-      provider: host,
+      provider: matchProviderLabel(host) ?? host,
     };
   }
 
@@ -371,7 +438,34 @@ function classifyUrlKind(url: URL): {
       detectedType: "App store link",
       label: "App install or app listing link",
       note: "This QR points to an app store listing.",
-      provider: host,
+      provider: matchProviderLabel(host) ?? host,
+    };
+  }
+
+  if (galleryHosts.has(host)) {
+    return {
+      detectedType: "Website link",
+      label: "Image or gallery link",
+      note: "This QR opens an image, photo album, or gallery page.",
+      provider: matchProviderLabel(host) ?? host,
+    };
+  }
+
+  if (mediaHosts.has(host)) {
+    return {
+      detectedType: "Website link",
+      label: "Media or streaming link",
+      note: "This QR opens a video, audio, or streaming page.",
+      provider: matchProviderLabel(host) ?? host,
+    };
+  }
+
+  if (provider) {
+    return {
+      detectedType: "Website link",
+      label: "Social profile or content link",
+      note: "This QR opens a social profile, post, or messaging page.",
+      provider,
     };
   }
 
@@ -402,18 +496,26 @@ function buildUrlSummary(
   url: URL,
   urlKind: {
     detectedType: string;
+    label: string;
+    provider?: string;
   },
 ): string {
+  const destination = urlKind.provider ?? url.hostname;
+
   if (urlKind.detectedType === "Document or file link") {
-    return `This QR points to a document or file link on ${url.hostname}.`;
+    return `This QR points to a ${urlKind.label.toLowerCase()} on ${destination}.`;
   }
 
   if (urlKind.detectedType === "Location link") {
-    return `This QR points to a map or navigation link on ${url.hostname}.`;
+    return `This QR points to a map or navigation link on ${destination}.`;
   }
 
   if (urlKind.detectedType === "App store link") {
-    return `This QR points to an app store listing on ${url.hostname}.`;
+    return `This QR points to an app store listing on ${destination}.`;
+  }
+
+  if (urlKind.label !== "Website") {
+    return `This QR opens a ${urlKind.label.toLowerCase()} on ${destination}.`;
   }
 
   return `This QR contains a website link to ${url.hostname}.`;
@@ -491,6 +593,14 @@ function buildPlainLanguage({
       : `This QR opens a document or file link on ${url.hostname}. It looks normal, but you should still verify the sender before downloading or opening anything.`;
   }
 
+  if (urlKind === "Location link") {
+    return `This QR opens a location or map destination on ${url.hostname}. It looks like a normal map link.`;
+  }
+
+  if (urlKind === "App store link") {
+    return `This QR opens an app store listing on ${url.hostname}. Check the app name and publisher before installing anything.`;
+  }
+
   return trustedMatch
     ? `This QR opens a link on a well-known ${trustedMatch} domain. It looks technically normal, but you should still check the page before logging in, paying, or sharing data.`
     : `This QR opens a link to ${url.hostname}. It looks technically normal, but the app cannot confirm who controls the site.`;
@@ -543,4 +653,46 @@ function endsWithAny(host: string, domains: Set<string>): boolean {
   return Array.from(domains).some(
     (domain) => host === domain || host.endsWith(`.${domain}`),
   );
+}
+
+function matchSocialProvider(host: string): string | undefined {
+  const match = socialHosts.find((entry) =>
+    entry.domains.some((domain) => host === domain || host.endsWith(`.${domain}`)),
+  );
+
+  return match?.label;
+}
+
+function matchProviderLabel(host: string): string | undefined {
+  return (
+    matchSocialProvider(host) ??
+    (host === "docs.google.com" ? "Google Docs" : undefined) ??
+    (host === "drive.google.com" ? "Google Drive" : undefined) ??
+    (host === "forms.office.com" ? "Microsoft Forms" : undefined) ??
+    (host === "photos.google.com" ? "Google Photos" : undefined) ??
+    (host === "dropbox.com" || host === "www.dropbox.com" ? "Dropbox" : undefined) ??
+    (host === "onedrive.live.com" ? "OneDrive" : undefined) ??
+    matchTrustedDomain(host) ??
+    undefined
+  );
+}
+
+function getFileKindLabel(extension: string): string {
+  if (["jpg", "jpeg", "png", "gif", "svg", "webp", "heic"].includes(extension)) {
+    return `${extension.toUpperCase()} image file`;
+  }
+
+  if (["mp3", "m4a", "wav"].includes(extension)) {
+    return `${extension.toUpperCase()} audio file`;
+  }
+
+  if (["mp4", "mov", "avi", "webm"].includes(extension)) {
+    return `${extension.toUpperCase()} video file`;
+  }
+
+  if (extension === "ics") {
+    return "Calendar file";
+  }
+
+  return `${extension.toUpperCase()} file link`;
 }

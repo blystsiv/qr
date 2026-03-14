@@ -70,10 +70,23 @@ const verdictCopy: Record<
 };
 
 const detailPriority: Record<string, string[]> = {
-  "Website link": ["Domain", "Normalized URL", "Known domain", "Path", "Provider"],
-  "Document or file link": ["Domain", "Normalized URL", "Provider", "Path"],
-  "App store link": ["Domain", "Normalized URL", "Provider"],
-  "Location link": ["Location", "Normalized URL"],
+  "Website link": [
+    "Domain",
+    "Link kind",
+    "Normalized URL",
+    "Known domain",
+    "Provider",
+    "Path",
+  ],
+  "Document or file link": [
+    "Domain",
+    "Link kind",
+    "Normalized URL",
+    "Provider",
+    "Path",
+  ],
+  "App store link": ["Domain", "Link kind", "Normalized URL", "Provider"],
+  "Location link": ["Coordinates", "Label", "Normalized URL", "Provider", "Link kind"],
   "Payment QR": [
     "Merchant name",
     "Amount",
@@ -114,6 +127,7 @@ const detailPriority: Record<string, string[]> = {
     "Subject",
     "Expires",
   ],
+  "Text note": ["Preview", "Length", "Words", "Lines"],
 };
 
 const hiddenDetailLabels = new Set([
@@ -121,7 +135,6 @@ const hiddenDetailLabels = new Set([
   "Query params",
   "Matched markers",
   "Top-level keys",
-  "Link kind",
   "CRC valid",
   "CRC status",
   "Provider markers",
@@ -130,6 +143,7 @@ const hiddenDetailLabels = new Set([
 
 const detailLabels: Record<string, string> = {
   "Normalized URL": "Destination",
+  "Link kind": "Type",
   "Known domain": "Recognized site",
   "Wallet / payment target": "Wallet",
   "Reference / note": "Reference",
@@ -147,6 +161,16 @@ const riskStyles: Record<RiskLevel, string> = {
   unknown: "border-[#9bcbea33] bg-[#9bcbea1a] text-[#c9e8fb]",
 };
 
+type ResultTheme = {
+  glow: string;
+  surface: string;
+  ring: string;
+  badge: string;
+  badgeText: string;
+  icon: ReactNode;
+  iconRing: string;
+};
+
 export function ResultPanel({
   result,
   sourceLabel,
@@ -161,13 +185,20 @@ export function ResultPanel({
 }: ResultPanelProps) {
   const verdictLevel = result.verdict?.level ?? "informational";
   const hero = verdictCopy[verdictLevel];
+  const theme = getResultTheme(result);
   const headline = getHeadline(result, hero.title);
   const visibleDetails = getVisibleDetails(result);
   const guidanceItems = getGuidanceItems(result);
   const nestedTags = Object.entries(result.debug?.nestedTags ?? {});
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-4 pb-8 pt-6 sm:pt-8">
+    <div className="relative mx-auto flex min-h-screen w-full max-w-[430px] flex-col overflow-hidden px-4 pb-8 pt-6 sm:pt-8">
+      <div
+        className="pointer-events-none absolute inset-x-[-20%] top-[-72px] h-64 blur-3xl"
+        style={{
+          background: `radial-gradient(circle at top, ${theme.glow} 0%, transparent 70%)`,
+        }}
+      />
       <ScreenHeader
         title="QR result"
         onBack={onBack}
@@ -178,7 +209,7 @@ export function ResultPanel({
         }
       />
 
-      <div className="mt-8 flex flex-1 flex-col">
+      <div className="relative mt-8 flex flex-1 flex-col">
         <div className="flex flex-col items-center text-center">
           <div
             className={`flex h-[72px] w-[72px] items-center justify-center rounded-full border ${hero.iconBorder} ${hero.iconTone}`}
@@ -206,6 +237,8 @@ export function ResultPanel({
         <div className="mt-6">
           <PreviewCard result={result} tone={getToneFromVerdict(verdictLevel)} />
         </div>
+
+        <ResultSpotlight result={result} theme={theme} />
 
         <section className="mt-6">
           <SectionTitle>What this means</SectionTitle>
@@ -608,10 +641,381 @@ function TlvTable({ title, nodes }: { title: string; nodes: TLVNode[] }) {
   );
 }
 
+function getResultTheme(result: QRInspectionResult): ResultTheme {
+  if (result.detectedType === "Crypto payment or wallet") {
+    const protocol = (result.scheme ?? "").toLowerCase();
+
+    if (protocol === "bitcoin") {
+      return {
+        glow: "rgba(247,147,26,0.35)",
+        surface: "rgba(247,147,26,0.11)",
+        ring: "border-[#f7931a55]",
+        badge: "bg-[#f7931a]",
+        badgeText: "text-[#0e2838]",
+        icon: <CoinIcon className="h-5 w-5" />,
+        iconRing: "border-[#f7b55a]",
+      };
+    }
+
+    if (protocol === "ethereum") {
+      return {
+        glow: "rgba(98,126,234,0.34)",
+        surface: "rgba(98,126,234,0.11)",
+        ring: "border-[#627eea55]",
+        badge: "bg-[#627eea]",
+        badgeText: "text-white",
+        icon: <DiamondIcon className="h-5 w-5" />,
+        iconRing: "border-[#8ea0ef]",
+      };
+    }
+
+    return {
+      glow: "rgba(110,231,183,0.28)",
+      surface: "rgba(16,185,129,0.11)",
+      ring: "border-[#10b98155]",
+      badge: "bg-[#10b981]",
+      badgeText: "text-[#0e2838]",
+      icon: <CoinIcon className="h-5 w-5" />,
+      iconRing: "border-[#6ee7b7]",
+    };
+  }
+
+  if (result.detectedType === "Payment QR") {
+    return {
+      glow: "rgba(245,193,108,0.28)",
+      surface: "rgba(245,193,108,0.11)",
+      ring: "border-[#f5c16c55]",
+      badge: "bg-[#f5c16c]",
+      badgeText: "text-[#0e2838]",
+      icon: <CardIcon className="h-5 w-5" />,
+      iconRing: "border-[#ffd489]",
+    };
+  }
+
+  if (result.detectedType === "Wi-Fi configuration") {
+    return {
+      glow: "rgba(45,212,191,0.28)",
+      surface: "rgba(45,212,191,0.11)",
+      ring: "border-[#2dd4bf55]",
+      badge: "bg-[#2dd4bf]",
+      badgeText: "text-[#0e2838]",
+      icon: <WifiIcon className="h-5 w-5" />,
+      iconRing: "border-[#75efe0]",
+    };
+  }
+
+  if (
+    ["Contact card", "Calendar event", "Email action", "Phone or messaging action"].includes(
+      result.detectedType,
+    )
+  ) {
+    return {
+      glow: "rgba(96,165,250,0.26)",
+      surface: "rgba(96,165,250,0.11)",
+      ring: "border-[#60a5fa55]",
+      badge: "bg-[#60a5fa]",
+      badgeText: "text-[#0e2838]",
+      icon: <PersonIcon className="h-5 w-5" />,
+      iconRing: "border-[#9ac8ff]",
+    };
+  }
+
+  if (
+    [
+      "Document / verification data (possible)",
+      "Government / identity / official data (possible)",
+      "Signed token / verification data",
+    ].includes(result.detectedType)
+  ) {
+    return {
+      glow: "rgba(168,85,247,0.25)",
+      surface: "rgba(168,85,247,0.11)",
+      ring: "border-[#a855f755]",
+      badge: "bg-[#a855f7]",
+      badgeText: "text-white",
+      icon: <DocumentIcon className="h-5 w-5" />,
+      iconRing: "border-[#c084fc]",
+    };
+  }
+
+  if (
+    result.detectedType === "Text note" ||
+    result.detectedType === "Structured text or app-specific data"
+  ) {
+    return {
+      glow: "rgba(148,163,184,0.22)",
+      surface: "rgba(148,163,184,0.1)",
+      ring: "border-[#94a3b855]",
+      badge: "bg-[#94a3b8]",
+      badgeText: "text-[#0e2838]",
+      icon: <TextIcon className="h-5 w-5" />,
+      iconRing: "border-[#c4cfdb]",
+    };
+  }
+
+  return {
+    glow: "rgba(155,203,234,0.28)",
+    surface: "rgba(155,203,234,0.11)",
+    ring: "border-[#9bcbea55]",
+    badge: "bg-[#9bcbea]",
+    badgeText: "text-[#0e2838]",
+    icon:
+      result.detectedType === "Location link" ? (
+        <PinIcon className="h-5 w-5" />
+      ) : (
+        <LinkIcon className="h-5 w-5" />
+      ),
+    iconRing: "border-[#bce2f8]",
+  };
+}
+
+function ResultSpotlight({
+  result,
+  theme,
+}: {
+  result: QRInspectionResult;
+  theme: ResultTheme;
+}) {
+  const content = getSpotlightContent(result);
+  if (!content) {
+    return null;
+  }
+
+  return (
+    <section className="mt-6">
+      <div
+        className={`rounded-[22px] border p-4 shadow-[0_20px_60px_rgba(7,18,27,0.18)] ${theme.ring}`}
+        style={{ background: theme.surface }}
+      >
+        <div className="flex items-start gap-4">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${theme.iconRing} ${theme.badge} ${theme.badgeText}`}
+          >
+            {theme.icon}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+              {content.kicker}
+            </p>
+            <h2 className="mt-2 break-words text-xl font-semibold leading-6 text-white">
+              {content.title}
+            </h2>
+            {content.subtitle ? (
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                {content.subtitle}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {content.badges?.length ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {content.badges.map((badge) => (
+              <span
+                key={badge}
+                className="rounded-full border border-white/10 bg-[#07121b66] px-3 py-1 text-xs font-medium text-white/75"
+              >
+                {badge}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {content.address ? (
+          <div className="mt-4 rounded-[16px] border border-white/10 bg-[#07121b] px-4 py-3">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+              {content.addressLabel ?? "Value"}
+            </p>
+            <p className="mt-2 break-all font-mono text-sm leading-6 text-white/80">
+              {content.address}
+            </p>
+          </div>
+        ) : null}
+
+        {content.rows?.length ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {content.rows.map((row) => (
+              <FactRow key={`${row.label}-${row.value}`} detail={row} />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function getSpotlightContent(result: QRInspectionResult): {
+  kicker: string;
+  title: string;
+  subtitle?: string;
+  badges?: string[];
+  address?: string;
+  addressLabel?: string;
+  rows?: QRInspectionDetail[];
+} | null {
+  const domain = getDetail(result, "Domain");
+  const provider = getDetail(result, "Provider");
+  const linkKind = getDetail(result, "Link kind");
+  const destination = getDetail(result, "Normalized URL");
+  const merchant =
+    getDetail(result, "Merchant name") ??
+    getDetail(result, "PayPal target") ??
+    getDetail(result, "Payment address");
+  const amount = getDetail(result, "Amount");
+  const currency = getDetail(result, "Currency");
+  const wallet = getDetail(result, "Wallet / payment target");
+  const protocol = getDetail(result, "Protocol") ?? result.scheme;
+  const ssid = getDetail(result, "SSID");
+  const encryption = getDetail(result, "Encryption");
+  const name = getDetail(result, "Name");
+  const email = getDetail(result, "Email") ?? getDetail(result, "Email target");
+  const phone = getDetail(result, "Phone") ?? getDetail(result, "Phone number");
+  const summary = getDetail(result, "Summary");
+  const starts = getDetail(result, "Starts");
+  const issuer =
+    getDetail(result, "Issuer / authority") ?? getDetail(result, "Issuer");
+  const preview = getDetail(result, "Preview");
+  const coordinates = getDetail(result, "Coordinates");
+  const label = getDetail(result, "Label");
+
+  if (
+    ["Website link", "Document or file link", "App store link", "Location link"].includes(
+      result.detectedType,
+    )
+  ) {
+    return {
+      kicker: formatDetectedType(result.detectedType),
+      title: provider ?? domain ?? "Link destination",
+      subtitle: label ?? linkKind ?? result.plainLanguage ?? result.summary,
+      badges: [linkKind, provider, result.scheme].filter(Boolean) as string[],
+      address: destination,
+      addressLabel:
+        result.detectedType === "Location link" ? "Open destination" : "Destination",
+      rows: [
+        ...(domain ? [{ label: "Domain", value: domain }] : []),
+        ...(coordinates ? [{ label: "Coordinates", value: coordinates }] : []),
+      ],
+    };
+  }
+
+  if (result.detectedType === "Payment QR") {
+    return {
+      kicker: result.scheme ?? "Payment",
+      title: merchant ?? "Payment request",
+      subtitle: amount
+        ? `${amount}${currency ? ` ${currency}` : ""} requested in this QR code.`
+        : "Payment details detected in this QR code.",
+      badges: [result.scheme, currency].filter(Boolean) as string[],
+      rows: pickDetails(result, ["Amount", "Currency", "Country", "City", "Reference"]),
+    };
+  }
+
+  if (result.detectedType === "Crypto payment or wallet") {
+    return {
+      kicker: "Crypto wallet",
+      title: protocol ? `${protocol} wallet` : "Crypto wallet",
+      subtitle: amount
+        ? `${amount} requested on ${protocol ?? "this network"}.`
+        : "Crypto wallet or payment details detected in this QR code.",
+      badges: [protocol, amount].filter(Boolean) as string[],
+      address: wallet,
+      addressLabel: "Wallet address",
+      rows: pickDetails(result, ["Amount", "Label"]),
+    };
+  }
+
+  if (result.detectedType === "Wi-Fi configuration") {
+    return {
+      kicker: "Wi-Fi network",
+      title: ssid ?? "Unknown network",
+      subtitle: encryption ? `${encryption} network details detected.` : result.summary,
+      badges: [encryption, getDetail(result, "Hidden network")].filter(Boolean) as string[],
+      rows: pickDetails(result, ["Encryption", "Hidden", "Password"]),
+    };
+  }
+
+  if (result.detectedType === "Contact card") {
+    return {
+      kicker: "Contact card",
+      title: name ?? "Contact details",
+      subtitle: getDetail(result, "Organization") ?? "Contact information detected.",
+      rows: [
+        ...(phone ? [{ label: "Phone", value: phone }] : []),
+        ...(email ? [{ label: "Email", value: email }] : []),
+      ],
+    };
+  }
+
+  if (result.detectedType === "Calendar event") {
+    return {
+      kicker: "Calendar event",
+      title: summary ?? "Event details",
+      subtitle: starts ? `Starts ${starts}.` : result.summary,
+      rows: pickDetails(result, ["Starts", "Ends", "Location"]),
+    };
+  }
+
+  if (result.detectedType === "Email action") {
+    return {
+      kicker: "Email draft",
+      title: email ?? "Email action",
+      subtitle: getDetail(result, "Subject") ?? result.summary,
+      rows: pickDetails(result, ["Subject", "Body"]),
+    };
+  }
+
+  if (result.detectedType === "Phone or messaging action") {
+    return {
+      kicker: result.scheme ?? "Message action",
+      title: phone ?? getDetail(result, "Recipient") ?? "Phone or message",
+      subtitle: getDetail(result, "Message body") ?? result.summary,
+      rows: pickDetails(result, ["Recipient", "Message body"]),
+    };
+  }
+
+  if (
+    [
+      "Document / verification data (possible)",
+      "Government / identity / official data (possible)",
+      "Signed token / verification data",
+    ].includes(result.detectedType)
+  ) {
+    return {
+      kicker: formatDetectedType(result.detectedType),
+      title: issuer ?? "Verification data",
+      subtitle: getDetail(result, "Type") ?? result.summary,
+      rows: pickDetails(result, ["Type", "Identifier", "Expires", "Subject"]),
+    };
+  }
+
+  if (result.detectedType === "Text note") {
+    return {
+      kicker: "Text note",
+      title: "Plain text",
+      subtitle: "This QR contains text instead of a link or action.",
+      address: preview,
+      addressLabel: "Text preview",
+      rows: pickDetails(result, ["Length", "Words", "Lines"]),
+    };
+  }
+
+  return null;
+}
+
+function pickDetails(result: QRInspectionResult, labels: string[]): QRInspectionDetail[] {
+  return labels
+    .map((label) => result.details.find((detail) => detail.label === label))
+    .filter((detail): detail is QRInspectionDetail => Boolean(detail))
+    .map((detail) => formatDetail(detail));
+}
+
 function getHeadline(result: QRInspectionResult, fallback: string): string {
   const domain = getDetail(result, "Domain")?.replace(/^www\./, "");
   const merchant = getDetail(result, "Merchant name");
   const ssid = getDetail(result, "SSID");
+  const protocol = getDetail(result, "Protocol") ?? result.scheme;
+  const name = getDetail(result, "Name");
+  const summary = getDetail(result, "Summary");
 
   if (result.verdict?.level === "safe") {
     return "Safe";
@@ -623,6 +1027,18 @@ function getHeadline(result: QRInspectionResult, fallback: string): string {
 
   if (result.detectedType === "Wi-Fi configuration" && ssid) {
     return "Wi-Fi detected";
+  }
+
+  if (result.detectedType === "Crypto payment or wallet" && protocol) {
+    return `${protocol} wallet`;
+  }
+
+  if (result.detectedType === "Contact card" && name) {
+    return name;
+  }
+
+  if (result.detectedType === "Calendar event" && summary) {
+    return summary;
   }
 
   if (result.detectedType === "Website link" && domain) {
@@ -637,6 +1053,9 @@ function getShortDescription(result: QRInspectionResult, fallback: string): stri
   const merchant = getDetail(result, "Merchant name");
   const amount = getDetail(result, "Amount");
   const ssid = getDetail(result, "SSID");
+  const protocol = getDetail(result, "Protocol") ?? result.scheme;
+  const summary = getDetail(result, "Summary");
+  const recipient = getDetail(result, "Recipient") ?? getDetail(result, "Phone number");
 
   if (result.detectedType === "Website link" && domain) {
     if (result.verdict?.level === "safe") {
@@ -658,6 +1077,32 @@ function getShortDescription(result: QRInspectionResult, fallback: string): stri
 
   if (result.detectedType === "Wi-Fi configuration" && ssid) {
     return `${ssid} can be added as a Wi-Fi network from this QR code.`;
+  }
+
+  if (result.detectedType === "Crypto payment or wallet" && protocol) {
+    return amount
+      ? `${protocol} payment details are included in this QR code for ${amount}.`
+      : `${protocol} wallet details are included in this QR code.`;
+  }
+
+  if (result.detectedType === "Contact card") {
+    return "This QR contains contact details that can be saved to another app.";
+  }
+
+  if (result.detectedType === "Calendar event" && summary) {
+    return `This QR contains an event called "${summary}".`;
+  }
+
+  if (result.detectedType === "Email action") {
+    return "This QR opens an email draft.";
+  }
+
+  if (result.detectedType === "Phone or messaging action" && recipient) {
+    return `This QR opens a call or message action for ${recipient}.`;
+  }
+
+  if (result.detectedType === "Text note") {
+    return "This QR contains plain text only.";
   }
 
   return result.plainLanguage ?? fallback;
@@ -746,6 +1191,8 @@ function formatDetectedType(detectedType: string): string {
       return "Official data";
     case "Signed token / verification data":
       return "Verification token";
+    case "Text note":
+      return "Text";
     default:
       return detectedType;
   }
@@ -761,6 +1208,152 @@ function truncateValue(value: string): string {
   }
 
   return `${value.slice(0, 72)}…`;
+}
+
+function LinkIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M10.5 13.5 13.5 10.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 15a3.5 3.5 0 0 1 0-5l2-2a3.5 3.5 0 0 1 5 5l-.5.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16 9a3.5 3.5 0 0 1 0 5l-2 2a3.5 3.5 0 1 1-5-5l.5-.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M12 20s6-4.6 6-10a6 6 0 1 0-12 0c0 5.4 6 10 6 10Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function CardIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <rect x="3.5" y="6" width="17" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3.5 10.5h17" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M7 15h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CoinIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="12" r="7.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M10 9.5h3a1.5 1.5 0 1 1 0 3h-2a1.5 1.5 0 1 0 0 3h3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 8v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DiamondIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M12 4 7 11l5 9 5-9-5-7Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M7 11h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function WifiIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M4 9.5a12 12 0 0 1 16 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7 13a8 8 0 0 1 10 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 16.5a4.5 4.5 0 0 1 4 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="19" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PersonIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="8.5" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M5.5 19a6.5 6.5 0 0 1 13 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DocumentIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M8 3.5h6l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 7 20V5A1.5 1.5 0 0 1 8.5 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M14 3.5V8h4" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M10 12h4M10 15.5h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TextIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M5 7h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 12h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7 17h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function ShieldIcon({ className }: { className?: string }) {

@@ -104,9 +104,14 @@ export function buildPreviewInfo(result: QRInspectionResult): PreviewInfo {
     getDetail(result, "Merchant name") ??
     getDetail(result, "PayPal target") ??
     getDetail(result, "Payment address");
+  const wallet = getDetail(result, "Wallet / payment target");
   const ssid = getDetail(result, "SSID");
   const name = getDetail(result, "Name");
   const issuer = getDetail(result, "Issuer / authority") ?? getDetail(result, "Issuer");
+  const locationLabel = getDetail(result, "Label") ?? getDetail(result, "Coordinates");
+  const eventSummary = getDetail(result, "Summary");
+  const linkKind = getDetail(result, "Link kind") ?? getDetail(result, "Type");
+  const textPreview = getDetail(result, "Preview");
 
   if (domain) {
     const cleanDomain = domain.replace(/^www\./, "").toLowerCase();
@@ -129,6 +134,17 @@ export function buildPreviewInfo(result: QRInspectionResult): PreviewInfo {
     };
   }
 
+  if (wallet) {
+    const protocol = getDetail(result, "Protocol") ?? result.scheme ?? "Crypto";
+
+    return {
+      title: `${protocol} wallet`,
+      description: "Crypto wallet or payment details detected.",
+      footer: truncateValue(wallet, 24),
+      initials: getInitials(protocol),
+    };
+  }
+
   if (merchant) {
     return {
       title: merchant,
@@ -141,12 +157,30 @@ export function buildPreviewInfo(result: QRInspectionResult): PreviewInfo {
     };
   }
 
+  if (locationLabel) {
+    return {
+      title: "Map location",
+      description: "Location details detected in this QR code.",
+      footer: truncateValue(locationLabel, 28),
+      initials: "MP",
+    };
+  }
+
   if (ssid) {
     return {
       title: ssid,
       description: "Wi-Fi network details detected.",
       footer: getDetail(result, "Encryption") ?? "Wi-Fi configuration",
       initials: getInitials(ssid),
+    };
+  }
+
+  if (eventSummary) {
+    return {
+      title: eventSummary,
+      description: "Event details detected in this QR code.",
+      footer: getDetail(result, "Starts") ?? "Calendar event",
+      initials: "EV",
     };
   }
 
@@ -168,11 +202,20 @@ export function buildPreviewInfo(result: QRInspectionResult): PreviewInfo {
     };
   }
 
+  if (textPreview) {
+    return {
+      title: "Text note",
+      description: truncateValue(textPreview, 64),
+      footer: result.detectedType,
+      initials: "TX",
+    };
+  }
+
   const fallbackTitle = result.verdict?.label ?? result.detectedType;
   return {
     title: fallbackTitle,
     description: result.plainLanguage ?? result.summary,
-    footer: result.scheme ?? result.detectedType,
+    footer: linkKind ?? result.scheme ?? result.detectedType,
     initials: getInitials(fallbackTitle),
   };
 }
@@ -243,4 +286,12 @@ function prettifyDomain(domain: string): string {
   return words
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function truncateValue(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength)}…`;
 }

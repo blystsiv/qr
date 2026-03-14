@@ -4,6 +4,9 @@ const bitcoinAddressPattern = /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/;
 const ethereumAddressPattern = /^0x[a-fA-F0-9]{40}$/;
 const litecoinAddressPattern = /^[LM3][a-km-zA-HJ-NP-Z1-9]{26,50}$/;
 const solanaAddressPattern = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const dogecoinAddressPattern = /^D{1}[5-9A-HJ-NP-U][1-9A-HJ-NP-Za-km-z]{32}$/;
+const tronAddressPattern = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+const cardanoAddressPattern = /^addr1[0-9a-z]{20,}$/i;
 
 export function detectCrypto(
   context: DetectorContext,
@@ -46,7 +49,9 @@ function parseCryptoUri(payload: string): {
   amount?: string;
   label?: string;
 } | null {
-  const match = payload.match(/^(bitcoin|ethereum|litecoin|solana):/i);
+  const match = payload.match(
+    /^(bitcoin|ethereum|litecoin|solana|dogecoin|tron|cardano):/i,
+  );
   if (!match) {
     return null;
   }
@@ -96,6 +101,30 @@ function detectWalletLikeString(payload: string): {
   if (solanaAddressPattern.test(payload)) {
     return {
       protocol: "Solana",
+      address: payload,
+      confidence: "low",
+    };
+  }
+
+  if (dogecoinAddressPattern.test(payload)) {
+    return {
+      protocol: "Dogecoin",
+      address: payload,
+      confidence: "medium",
+    };
+  }
+
+  if (tronAddressPattern.test(payload)) {
+    return {
+      protocol: "TRON",
+      address: payload,
+      confidence: "medium",
+    };
+  }
+
+  if (cardanoAddressPattern.test(payload)) {
+    return {
+      protocol: "Cardano",
       address: payload,
       confidence: "low",
     };
