@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { PreviewCard, getToneFromVerdict } from "@/components/PreviewCard";
 import { formatReportReason, type ReportDraft } from "@/lib/reporting";
 import type {
   QRInspectionDetail,
@@ -70,42 +69,22 @@ const verdictCopy: Record<
 };
 
 const detailPriority: Record<string, string[]> = {
-  "Website link": [
-    "Domain",
-    "Link kind",
-    "Normalized URL",
-    "Known domain",
-    "Provider",
-    "Path",
-  ],
-  "Document or file link": [
-    "Domain",
-    "Link kind",
-    "Normalized URL",
-    "Provider",
-    "Path",
-  ],
-  "App store link": ["Domain", "Link kind", "Normalized URL", "Provider"],
-  "Location link": ["Coordinates", "Label", "Normalized URL", "Provider", "Link kind"],
+  "Website link": ["Domain", "Known domain", "Normalized URL"],
+  "Document or file link": ["Known domain", "Normalized URL"],
+  "App store link": ["Known domain", "Normalized URL"],
+  "Location link": ["Label", "Coordinates"],
   "Payment QR": [
     "Merchant name",
     "Amount",
     "Currency",
-    "Country",
-    "City",
     "Payment address",
     "PayPal target",
     "Reference / note",
     "Reference",
   ],
-  "Crypto payment or wallet": [
-    "Wallet / payment target",
-    "Amount",
-    "Label",
-    "Protocol",
-  ],
+  "Crypto payment or wallet": ["Wallet / payment target", "Amount", "Label"],
   "Wi-Fi configuration": ["SSID", "Encryption", "Hidden network", "Password"],
-  "Email action": ["Email target", "Subject", "Body"],
+  "Email action": ["Email target", "Subject"],
   "Phone or messaging action": ["Phone number", "Recipient", "Message body"],
   "Contact card": ["Name", "Phone", "Email", "Organization"],
   "Calendar event": ["Summary", "Starts", "Ends", "Location"],
@@ -139,6 +118,10 @@ const hiddenDetailLabels = new Set([
   "CRC status",
   "Provider markers",
   "Payload format",
+  "Provider",
+  "Path",
+  "Link kind",
+  "Normalized URL",
 ]);
 
 const detailLabels: Record<string, string> = {
@@ -171,6 +154,17 @@ type ResultTheme = {
   iconRing: string;
 };
 
+type SpotlightContent = {
+  kicker: string;
+  title: string;
+  subtitle?: string;
+  badges?: string[];
+  address?: string;
+  addressLabel?: string;
+  rows?: QRInspectionDetail[];
+  shownLabels?: string[];
+};
+
 export function ResultPanel({
   result,
   sourceLabel,
@@ -186,9 +180,11 @@ export function ResultPanel({
   const verdictLevel = result.verdict?.level ?? "informational";
   const hero = verdictCopy[verdictLevel];
   const theme = getResultTheme(result);
+  const spotlight = getSpotlightContent(result);
   const headline = getHeadline(result, hero.title);
-  const visibleDetails = getVisibleDetails(result);
+  const visibleDetails = getVisibleDetails(result, spotlight?.shownLabels);
   const guidanceItems = getGuidanceItems(result);
+  const metaChips = getMetaChips(result);
   const nestedTags = Object.entries(result.debug?.nestedTags ?? {});
 
   return (
@@ -225,20 +221,12 @@ export function ResultPanel({
         </div>
 
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <MetaChip label={formatDetectedType(result.detectedType)} />
-          {result.scheme ? <MetaChip label={result.scheme} /> : null}
-          <MetaChip label={`Confidence: ${capitalize(result.confidence)}`} />
-          <MetaChip
-            label={`Risk: ${capitalize(result.riskLevel)}`}
-            className={riskStyles[result.riskLevel]}
-          />
+          {metaChips.map((chip) => (
+            <MetaChip key={chip.label} label={chip.label} className={chip.className} />
+          ))}
         </div>
 
-        <div className="mt-6">
-          <PreviewCard result={result} tone={getToneFromVerdict(verdictLevel)} />
-        </div>
-
-        <ResultSpotlight result={result} theme={theme} />
+        <ResultSpotlight theme={theme} content={spotlight} />
 
         <section className="mt-6">
           <SectionTitle>What this means</SectionTitle>
@@ -249,7 +237,7 @@ export function ResultPanel({
 
         {visibleDetails.length ? (
           <section className="mt-6">
-            <SectionTitle>Details</SectionTitle>
+            <SectionTitle>Important details</SectionTitle>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {visibleDetails.map((detail) => (
                 <FactRow key={detail.label} detail={detail} />
@@ -260,7 +248,7 @@ export function ResultPanel({
 
         {guidanceItems.length ? (
           <section className="mt-6">
-            <SectionTitle>Before you continue</SectionTitle>
+            <SectionTitle>What to do next</SectionTitle>
             <div className="mt-3 space-y-2">
               {guidanceItems.map((item) => (
                 <InfoCard key={item}>{item}</InfoCard>
@@ -270,28 +258,28 @@ export function ResultPanel({
         ) : null}
 
         <section className="mt-6">
-          <SectionTitle>Full QR content</SectionTitle>
-          <div className="mt-3 rounded-[18px] border border-[#9bcbea33] bg-[#9bcbea1a] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-white">Everything inside the QR code</p>
-              <button
-                type="button"
-                onClick={onCopyPayload}
-                className="rounded-full border border-[#9bcbea33] bg-transparent px-3 py-1.5 text-xs font-medium text-[#9bcbea] transition hover:bg-[#9bcbea12]"
-              >
-                Copy
-              </button>
-            </div>
-            <p className="mt-1 text-sm text-white/55">Source: {sourceLabel}</p>
-            <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-[14px] bg-[#07121b] px-4 py-3 text-xs leading-6 text-white/75">
-              {result.rawPayload}
-            </pre>
+          <SectionTitle>Actions</SectionTitle>
+          <div className="mt-3 flex flex-col gap-3">
+            {onOpenDestination ? (
+              <ActionButton
+                primary
+                label={openLabel}
+                icon={<ArrowUpRightIcon className="h-5 w-5" />}
+                onClick={onOpenDestination}
+              />
+            ) : null}
+
+            <ActionButton
+              label="Scan another QR"
+              icon={<ArrowLeftIcon className="h-5 w-5" />}
+              onClick={onReset}
+            />
           </div>
         </section>
 
         <section className="mt-6">
           <SectionTitle>Report</SectionTitle>
-          <div className="mt-3 rounded-[18px] border border-[#fb504733] bg-[#fb504712] p-4">
+          <SectionCard tone="danger">
             {submittedReport ? (
               <>
                 <p className="text-sm font-medium text-white">Your report is saved.</p>
@@ -341,28 +329,32 @@ export function ResultPanel({
                 onClick={onOpenReport}
               />
             </div>
-          </div>
+          </SectionCard>
         </section>
 
-        <section className="mt-6">
-          <SectionTitle>Actions</SectionTitle>
-          <div className="mt-3 flex flex-col gap-3">
-            {onOpenDestination ? (
-              <ActionButton
-                primary
-                label={openLabel}
-                icon={<ArrowUpRightIcon className="h-5 w-5" />}
-                onClick={onOpenDestination}
-              />
-            ) : null}
-
-            <ActionButton
-              label="New analysis"
-              icon={<ArrowLeftIcon className="h-5 w-5" />}
-              onClick={onReset}
-            />
+        <details className="mt-6 rounded-[18px] border border-[#9bcbea26] bg-[#9bcbea0d]">
+          <summary className="cursor-pointer list-none px-4 py-4 text-sm font-medium text-white marker:hidden">
+            <span className="flex items-center justify-between gap-3">
+              <span>Show full QR text</span>
+              <span className="text-xs text-white/45">Tap to expand</span>
+            </span>
+          </summary>
+          <div className="border-t border-[#9bcbea1f] px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-white">Everything inside the QR code</p>
+              <button
+                type="button"
+                onClick={onCopyPayload}
+                className="rounded-full border border-[#9bcbea33] bg-transparent px-3 py-1.5 text-xs font-medium text-[#9bcbea] transition hover:bg-[#9bcbea12]"
+              >
+                Copy
+              </button>
+            </div>
+            <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-[14px] bg-[#07121b] px-4 py-3 text-xs leading-6 text-white/75">
+              {result.rawPayload}
+            </pre>
           </div>
-        </section>
+        </details>
 
         {developerMode && result.debug ? (
           <details className="mt-4 rounded-[18px] border border-[#9bcbea33] bg-[#9bcbea1a]">
@@ -578,6 +570,21 @@ function InfoCard({ children }: { children: ReactNode }) {
   );
 }
 
+function SectionCard({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "neutral" | "danger";
+}) {
+  const styles =
+    tone === "danger"
+      ? "border-[#fb504733] bg-[#fb504712]"
+      : "border-[#9bcbea33] bg-[#9bcbea1a]";
+
+  return <div className={`mt-3 rounded-[18px] border p-4 ${styles}`}>{children}</div>;
+}
+
 function TechnicalCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[16px] border border-[#9bcbea33] bg-[#9bcbea1a] px-4 py-3">
@@ -770,13 +777,12 @@ function getResultTheme(result: QRInspectionResult): ResultTheme {
 }
 
 function ResultSpotlight({
-  result,
   theme,
+  content,
 }: {
-  result: QRInspectionResult;
   theme: ResultTheme;
+  content: SpotlightContent | null;
 }) {
-  const content = getSpotlightContent(result);
   if (!content) {
     return null;
   }
@@ -844,15 +850,7 @@ function ResultSpotlight({
   );
 }
 
-function getSpotlightContent(result: QRInspectionResult): {
-  kicker: string;
-  title: string;
-  subtitle?: string;
-  badges?: string[];
-  address?: string;
-  addressLabel?: string;
-  rows?: QRInspectionDetail[];
-} | null {
+function getSpotlightContent(result: QRInspectionResult): SpotlightContent | null {
   const domain = getDetail(result, "Domain");
   const provider = getDetail(result, "Provider");
   const linkKind = getDetail(result, "Link kind");
@@ -895,6 +893,14 @@ function getSpotlightContent(result: QRInspectionResult): {
         ...(domain ? [{ label: "Domain", value: domain }] : []),
         ...(coordinates ? [{ label: "Coordinates", value: coordinates }] : []),
       ],
+      shownLabels: [
+        "Domain",
+        "Coordinates",
+        "Normalized URL",
+        "Provider",
+        "Link kind",
+        "Label",
+      ],
     };
   }
 
@@ -907,6 +913,16 @@ function getSpotlightContent(result: QRInspectionResult): {
         : "Payment details detected in this QR code.",
       badges: [result.scheme, currency].filter(Boolean) as string[],
       rows: pickDetails(result, ["Amount", "Currency", "Country", "City", "Reference"]),
+      shownLabels: [
+        "Merchant name",
+        "PayPal target",
+        "Payment address",
+        "Amount",
+        "Currency",
+        "Country",
+        "City",
+        "Reference",
+      ],
     };
   }
 
@@ -921,6 +937,7 @@ function getSpotlightContent(result: QRInspectionResult): {
       address: wallet,
       addressLabel: "Wallet address",
       rows: pickDetails(result, ["Amount", "Label"]),
+      shownLabels: ["Wallet / payment target", "Amount", "Label", "Protocol"],
     };
   }
 
@@ -931,6 +948,7 @@ function getSpotlightContent(result: QRInspectionResult): {
       subtitle: encryption ? `${encryption} network details detected.` : result.summary,
       badges: [encryption, getDetail(result, "Hidden network")].filter(Boolean) as string[],
       rows: pickDetails(result, ["Encryption", "Hidden", "Password"]),
+      shownLabels: ["SSID", "Encryption", "Hidden network", "Password"],
     };
   }
 
@@ -943,6 +961,7 @@ function getSpotlightContent(result: QRInspectionResult): {
         ...(phone ? [{ label: "Phone", value: phone }] : []),
         ...(email ? [{ label: "Email", value: email }] : []),
       ],
+      shownLabels: ["Name", "Organization", "Phone", "Phone number", "Email", "Email target"],
     };
   }
 
@@ -952,6 +971,7 @@ function getSpotlightContent(result: QRInspectionResult): {
       title: summary ?? "Event details",
       subtitle: starts ? `Starts ${starts}.` : result.summary,
       rows: pickDetails(result, ["Starts", "Ends", "Location"]),
+      shownLabels: ["Summary", "Starts", "Ends", "Location"],
     };
   }
 
@@ -961,6 +981,7 @@ function getSpotlightContent(result: QRInspectionResult): {
       title: email ?? "Email action",
       subtitle: getDetail(result, "Subject") ?? result.summary,
       rows: pickDetails(result, ["Subject", "Body"]),
+      shownLabels: ["Email target", "Subject", "Body"],
     };
   }
 
@@ -970,6 +991,7 @@ function getSpotlightContent(result: QRInspectionResult): {
       title: phone ?? getDetail(result, "Recipient") ?? "Phone or message",
       subtitle: getDetail(result, "Message body") ?? result.summary,
       rows: pickDetails(result, ["Recipient", "Message body"]),
+      shownLabels: ["Phone number", "Recipient", "Message body"],
     };
   }
 
@@ -985,6 +1007,7 @@ function getSpotlightContent(result: QRInspectionResult): {
       title: issuer ?? "Verification data",
       subtitle: getDetail(result, "Type") ?? result.summary,
       rows: pickDetails(result, ["Type", "Identifier", "Expires", "Subject"]),
+      shownLabels: ["Issuer / authority", "Issuer", "Type", "Identifier", "Expires", "Subject"],
     };
   }
 
@@ -996,6 +1019,7 @@ function getSpotlightContent(result: QRInspectionResult): {
       address: preview,
       addressLabel: "Text preview",
       rows: pickDetails(result, ["Length", "Words", "Lines"]),
+      shownLabels: ["Preview", "Length", "Words", "Lines"],
     };
   }
 
@@ -1108,14 +1132,18 @@ function getShortDescription(result: QRInspectionResult, fallback: string): stri
   return result.plainLanguage ?? fallback;
 }
 
-function getVisibleDetails(result: QRInspectionResult): QRInspectionDetail[] {
+function getVisibleDetails(
+  result: QRInspectionResult,
+  spotlightLabels: string[] = [],
+): QRInspectionDetail[] {
   const detailsByLabel = new Map(result.details.map((detail) => [detail.label, detail]));
   const selected: QRInspectionDetail[] = [];
   const preferred = detailPriority[result.detectedType] ?? [];
+  const spotlightLabelSet = new Set(spotlightLabels);
 
   for (const label of preferred) {
     const detail = detailsByLabel.get(label);
-    if (!detail) {
+    if (!detail || spotlightLabelSet.has(label)) {
       continue;
     }
 
@@ -1124,7 +1152,11 @@ function getVisibleDetails(result: QRInspectionResult): QRInspectionDetail[] {
   }
 
   for (const detail of result.details) {
-    if (!detailsByLabel.has(detail.label) || hiddenDetailLabels.has(detail.label)) {
+    if (
+      !detailsByLabel.has(detail.label) ||
+      hiddenDetailLabels.has(detail.label) ||
+      spotlightLabelSet.has(detail.label)
+    ) {
       continue;
     }
 
@@ -1132,7 +1164,7 @@ function getVisibleDetails(result: QRInspectionResult): QRInspectionDetail[] {
     detailsByLabel.delete(detail.label);
   }
 
-  return selected;
+  return selected.slice(0, 4);
 }
 
 function getGuidanceItems(result: QRInspectionResult): string[] {
@@ -1155,6 +1187,37 @@ function formatDetail(detail: QRInspectionDetail): QRInspectionDetail {
     label: detailLabels[detail.label] ?? detail.label,
     value: detail.value,
   };
+}
+
+function getMetaChips(
+  result: QRInspectionResult,
+): Array<{ label: string; className?: string }> {
+  const chips: Array<{ label: string; className?: string }> = [
+    { label: formatDetectedType(result.detectedType) },
+  ];
+
+  if (
+    result.scheme &&
+    ["Payment QR", "Crypto payment or wallet", "Phone or messaging action"].includes(
+      result.detectedType,
+    )
+  ) {
+    chips.push({ label: result.scheme });
+  }
+
+  if (
+    result.riskLevel === "medium" ||
+    result.riskLevel === "high" ||
+    result.verdict?.level === "suspicious" ||
+    result.verdict?.level === "scam"
+  ) {
+    chips.push({
+      label: `Risk: ${capitalize(result.riskLevel)}`,
+      className: riskStyles[result.riskLevel],
+    });
+  }
+
+  return chips;
 }
 
 function getDetail(result: QRInspectionResult, label: string): string | undefined {
